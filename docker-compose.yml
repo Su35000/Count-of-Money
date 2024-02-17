@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  db_admin:
+    image: phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_ARBITRARY=1
+    depends_on:
+      - mariadb
+  backend:
+    image: docker.io/bitnami/symfony:6.3
+    ports:
+      - '8000:8000'
+    volumes:
+      - './backend:/app'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - SYMFONY_DATABASE_HOST=mariadb
+      - SYMFONY_DATABASE_PORT_NUMBER=3306
+      - SYMFONY_DATABASE_USER=user
+      - SYMFONY_DATABASE_NAME=database
+      - SYMFONY_PROJECT_SKELETON=symfony/skeleton
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    command: bash -c "php bin/console doctrine:migrations:migrate --no-interaction & php bin/console lexik:jwt:generate-keypair --skip-if-exists & /opt/bitnami/scripts/symfony/entrypoint.sh /opt/bitnami/scripts/symfony/run.sh "
+  mariadb:
+    image: docker.io/bitnami/mariadb:11.1
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MARIADB_USER=user
+      - MARIADB_DATABASE=database
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mariadb/data
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+        - "3000:3000"
+    command: npm run dev
+
+volumes:
+  mariadb_data:
